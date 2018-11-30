@@ -1,32 +1,11 @@
+#-*-coding:utf8-*-
 #
 # 样本为X, Y。X.shape=(m,d), Y.shape=(m, k)。d为X的维度，m样本数, k为分类标签数
 # Weight: (k, d), b: (k,1) => theta: (k, d+1)
 #
 
 import numpy as np
-import matplotlib.pyplot as plt
-import time
 
-d = 784
-
-k = 10
-
-# 单层全连接神经网络
-# Input layer: (d, 1), Output layer: (k, 1)
-# Weight Matrix: (k, d), bias vector: (k, 1) => \theta: (k, d+1)
-# Model: h = W * x + b
-
-X = np.ndfromtxt('images.csv', delimiter=',')
-y_orig = np.ndfromtxt("labels.csv", delimiter=',', dtype=np.int8)
-img_size = X.shape[1]
-num_class = 10
-
-# Y one-hot vector
-Y = np.zeros([len(y_orig), num_class])
-Y[np.arange(len(y_orig)), y_orig] = 1
-
-# X维度从d扩展到d+1，其中，第0维的值为1
-X = np.insert(X, 0, values=np.ones(X.shape[0]), axis=1)
 
 def softmax(X):
     x = np.exp(X)
@@ -138,23 +117,99 @@ def cross_entropy(Y, Y_hat):
     return -(1/M) * np.sum(np.log(y))
 
 
-num_epochs = int(len(Y) * 0.8)
-X_train = X[0:num_epochs, :]
-X_test = X[num_epochs:-1, :]
-y_train = Y[0:num_epochs]
-y_test = Y[num_epochs:-1]
+def print_help():
+    print('softmax_regression.py -n 10 -s images.csv -L label.csv -m captcha.pickle')
+    print('or: softmax_regression.py --source=images.csv --label=label.csv --model=captcha.pickle')
+    sys.exit()
 
-# theta weight matrix: (d + 1, k)
-theta = np.zeros([d + 1, k])
 
-batch_size = 10000
+if __name__ == '__main__':
+    import time
+    import sys
+    import getopt
+    import pickle
 
-num_epochs = 120
-alpha = 0.001
-lamda = 0.005
-start = time.time()
-theta = train(X_train, y_train, theta=theta, num_epochs=num_epochs, alpha=alpha, batch_size=batch_size, lamda=lamda)
-end = time.time()
-print("time elapsed: {0} seconds".format(end - start))
-pred = np.argmax(h_vec(theta, X_test), axis=1)
-print("percentage correct: {0}".format(np.sum(pred == np.argmax(y_test, axis=1)) / float(len(y_test))))
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hs:L:n:m:", ["help", "source=", "label=", "model="])
+    except getopt.GetoptError:
+        print_help()
+        sys.exit(1)
+
+    source = None
+    label = None
+    model = None
+    num = None
+
+    for opt, arg in opts:
+        print opt, arg
+        if opt in ("-h", "--help"):
+            print_help()
+        elif opt in ("-s", "--source"):
+            source = arg
+        elif opt in ("-L", "--label"):
+            label = arg
+        elif opt in ("-m", "--model"):
+            model = arg
+        elif opt in ("-n"):
+            num = int(arg)
+
+    if not source or not label or not model or not num:
+        print_help()
+
+    # 单层全连接神经网络
+    # Input layer: (d, 1), Output layer: (k, 1)
+    # Weight Matrix: (k, d), bias vector: (k, 1) => \theta: (k, d+1)
+    # Model: h = W * x + b
+
+    X = np.ndfromtxt(source, delimiter=',')
+    y_orig = np.ndfromtxt(label, delimiter=',', dtype=np.int8)
+
+    d = X.shape[1]
+
+    k = num
+
+    print "dimension: %i, class num: %i" % (d, k)
+
+    rows = X.shape[0]
+
+    shuffle_rows = np.arange(rows)
+    np.random.shuffle(shuffle_rows)
+
+    X = X[shuffle_rows, :]
+    y_orig = y_orig[shuffle_rows]
+
+    img_size = X.shape[1]
+    num_class = k
+
+    # Y one-hot vector
+    Y = np.zeros([len(y_orig), num_class])
+    Y[np.arange(len(y_orig)), y_orig] = 1
+
+    # X维度从d扩展到d+1，其中，第0维的值为1
+    X = np.insert(X, 0, values=np.ones(X.shape[0]), axis=1)
+    num_epochs = int(len(Y) * 0.8)
+    X_train = X[0:num_epochs, :]
+    X_test = X[num_epochs:-1, :]
+    y_train = Y[0:num_epochs]
+    y_test = Y[num_epochs:-1]
+
+    # theta weight matrix: (d + 1, k)
+    theta = np.zeros([d + 1, k])
+
+    batch_size = 100
+
+    num_epochs = 120
+    alpha = 0.001
+    lamda = 0.005
+    start = time.time()
+    theta = train(X_train, y_train, theta=theta, num_epochs=num_epochs, alpha=alpha, batch_size=batch_size, lamda=lamda)
+    end = time.time()
+    print("time elapsed: {0} seconds".format(end - start))
+    pred = np.argmax(h_vec(theta, X_test), axis=1)
+    print("percentage correct: {0}".format(np.sum(pred == np.argmax(y_test, axis=1)) / float(len(y_test))))
+
+    out = open(model, 'w')
+    pickle.dump(theta, out)
+    out.close()
+
+    print "save model into " + model
